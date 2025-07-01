@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AETQCHE - Authentication System</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Genos:wght@400;700&display=swap">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.8.1/font/bootstrap-icons.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <style>
+        body {
+            font-family: "Genos", sans-serif;
+        }
+
+        .input-container input:focus + .label,
+        .input-container input:not(:placeholder-shown) + .label,
+        .input-container select:focus + .label,
+        .input-container select:valid + .label,
+        .input-container select.has-value + .label {
+            transform: translateY(-30px);
+            font-size: 12px;
+            color: #000;
+        }
+
+        .input-container input::placeholder,
+        .input-container select::placeholder {
+            color: transparent;
+        }
+
+        /* Loading spinner */
+        .spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #000;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Toast notifications */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 5px;
+            color: white;
+            font-weight: bold;
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .toast.success {
+            background-color: #4CAF50;
+        }
+
+        .toast.error {
+            background-color: #f44336;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Error messages */
+        .error-message {
+            color: #f44336;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body class="bg-white">
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <!-- Main Container -->
+    <div class="container mx-auto max-w-lg p-5">
+        <header class="text-center mb-5">
+            <h1 class="text-3xl md:text-4xl font-bold">AETQCHE</h1>
+        </header>
+        
+        <!-- User Dashboard (Hidden by default) -->
+        <div id="user-dashboard" class="hidden">
+            <div class="bg-gray-100 p-6 rounded-lg mb-4">
+                <h2 class="text-2xl font-bold mb-4">Welcome!</h2>
+                <p class="mb-2">Email: <span id="user-email" class="font-semibold"></span></p>
+                <p class="mb-2">Name: <span id="user-name" class="font-semibold"></span></p>
+                <p class="mb-4">Email Verified: <span id="email-verified" class="font-semibold"></span></p>
+                <button id="verify-email-btn" class="py-2 px-4 bg-blue-500 text-white font-bold rounded mr-2 hidden">
+                    Send Verification Email
+                </button>
+                <button id="logout-btn" class="py-2 px-4 bg-black text-white font-bold rounded">
+                    Logout
+                </button>
+            </div>
+        </div>
+
+        <!-- Auth Forms -->
+        <main id="auth-forms">
+            <div class="account text-left">
+                <nav>
+                    <ul class="flex justify-center list-none p-0 border-b border-black mb-5">
+                        <li class="flex-1 text-center">
+                            <a href="#" id="register-tab" class="block py-2 font-bold text-black border-b-2 border-black">REGISTER</a>
+                        </li>
+                        <li class="flex-1 text-center">
+                            <a href="#" id="signin-tab" class="block py-2 font-bold text-black">SIGN IN</a>
+                        </li>
+                    </ul>
+                </nav>
+                
+                <div class="form-container flex flex-col items-center">
+                    <!-- Registration Form -->
+                    <form id="register-form" class="w-full flex flex-col active">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5 w-full">
+                            <div class="input-container relative mb-5">
+                                <input type="text" id="first-name" placeholder=" " required 
+                                       class="border-b border-gray-300 py-2 w-full focus:outline-none focus:border-black">
+                                <label for="first-name" class="label absolute left-0 top-1/2 transform -translate-y-1/2 transition-all pointer-events-none text-gray-400">
+                                    First Name
+                                </label>
+                                <div class="error-message" id="first-name-error"></div>
+                            </div>
+                            
+                            <div class="input-container relative mb-5">
+                                <input type="text" id="last-name" placeholder=" " required 
+                                       class="border-b border-gray-300 py-2 w-full focus:outline-none focus:border-black">
+                                <label for="last-name" class="label absolute left-0 top-1/2 transform -translate-y-1/2 transition-all pointer-events-none text-gray-400">
+                                    Last Name
+                                </label>
+                                <div class="error-message" id="last-name-error"></div>
+                            </div>
+                            
+                            <div class="input-container relative mb-5 col-span-2">
+                                <input type="email" id="email" placeholder=" " required 
+                                       class="border-b border-gray-300 py-2 w-full focus:outline-none focus:border-black">
+                                <label for="email" class="label absolute left-0 top-1/2 transform -translate-y-1/2 transition-all pointer-events-none text-gray-400">
+                                    Email address
+                                </label>
+                                <div class="error-message" id="email-error"></div>
+                            </div>
+                            
+                            <div class="input-container relative mb-5 col-span-2">
+                                <input type="password" id="password" placeholder=" " required 
+                                       class="border-b border-gray-300 py-2 w-full focus:outline-none focus:border-black">
+                                <label for="password" class="label absolute left-0 top-1/2 transform -translate-y-1/2 transition-all pointer-events-none text-gray-400">
+                                    Password (min 6 characters)
+                                </label>
+                                <i class="bi bi-eye-slash toggle-password absolute top-1/2 right-2 transform -translate-y-1/2 cursor-pointer" 
+                                   id="toggle-password"></i>
+                                <div class="error-message" id="password-error"></div>
+                            </div>
+                            
+                            <div class="input-container relative mb-5 col-span-2">
+                                <input type="date" id="birthday" placeholder=" " required 
+                                       class="border-b border-gray-300 py-2 w-full focus:outline-none focus:border-black">
+                                <label for="birthday" class="label absolute left-0 top-1/2 transform -translate-y-1/2 transition-all pointer-events-none text-gray-400">
+                                    Birthday (YYYY/MM/DD)
+                                </label>
+                                <div class="error-message" id="birthday-error"></div>
+                            </div>
+                            
+                            <div class="input-container relative mb-5">
+                                <select id="address-type" required 
+                                        class="border-b border-gray-300 py-2 w-full focus:outline-none focus:border-black">
+                                    <option value="home">Home</option>
+                                    <option value="work">Work</option>
+                                </select>
+                                <label for="address-type" class="label absolute left-0 top-1/2 transform -translate-y-1/2 transition-all pointer-events-none text-gray-400">
+                                    Address Type
+                                </label>
+                            </div>
+                            
+                            <div class="input-container relative mb-5">
+                                <input type="text" id="address" placeholder=" " required 
+                                       class="border-b border-gray-300 py-2 w-full focus:outline-none focus:border-black">
+                                <label for="address" class="label absolute left-0 top-1/2 transform -translate-y-1/2 transition-all pointer-events-none text-gray-400">
+                                    Address
+                                </label>
+                            </div>
+                            
+                            <div class="input-container relative mb-5">
+                                <input type="tel" id="mobile" placeholder=" " required 
+                                       class="border-b border-gray-300 py-2 w-full focus:outline-none focus:border-black">
+                                <label for="mobile" class="label absolute left-0 top-1/2 transform -translate-y-1/2 transition-all pointer-events-none text-gray-400">
+                                    Mobile phone number
+                                </label>
+                                <div class="error-message" id="mobile-error"></div>
+                            </div>
+                            
+                            <div class="input-container relative mb-5">
+                                <select id="country" required 
+                                        class="border-b border-gray-300 py-2 w-full focus:outline-none focus:border-black">
+                                    <option value="India">India</option>
+                                    <option value="Russia">Russia</option>
+                                    <option value="America">America</option>
+                                </select>
+                                <label for="country" class="label absolute left-0 top-1/2 transform -translate-y-1/2 transition-all pointer-events-none text-gray-400">
+                                    Country
+                                </label>
+                            </div>
+                            
+                            <div class="checkbox-container flex items-start mb-5 text-xs col-span-2">
+                                <input type="checkbox" id="consent" class="mr-2">
+                                <label for="consent">
+                                    I wish for <b>AETQCHE India</b> and the <b>AETQCHE Organization</b> to collect, process, 
+                                    transfer and store my personal data as described in the privacy policy, and the benefit 
+                                    from a personalised <b>AETQCHE</b> experience across the world*
+                                    <br><br>*This field is mandatory. If you do not agree with the above, we will not be able 
+                                    to proceed with your registration.
+                                </label>
+                            </div>
+                            
+                            <div class="checkbox-container flex items-start mb-5 text-xs col-span-2">
+                                <input type="checkbox" id="marketing" class="mr-2" checked>
+                                <label for="marketing">
+                                    I wish for <b>AETQCHE India</b> and <b>AETQCHE Organization</b> to send me brand 
+                                    communications about new collection, products, services and events through email, 
+                                    phone, SMS, instant messaging and post.
+                                </label>
+                            </div>
+                            
+                            <div class="col-span-2">
+                                <button type="submit" id="register-btn" class="py-3 bg-black text-white font-bold w-full">
+                                    REGISTER
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                    
+                    <!-- Sign In Form -->
+                    <form id="signin-form" class="w-full flex flex-col hidden">
+                        <div class="input-container relative mb-5">
+                            <input type="email" id="signin-email" placeholder=" " required 
+                                   class="border-b border-gray-300 py-2 w-full focus:outline-none focus:border-black">
+                            <label for="signin-email" class="label absolute left-0 top-1/2 transform -translate-y-1/2 transition-all pointer-events-none text-gray-400">
+                                Email address
+                            </label>
+                            <div class="error-message" id="signin-email-error"></div>
+                        </div>
+                        
+                        <div class="input-container relative mb-5">
+                            <input type="password" id="signin-password" placeholder=" " required 
+                                   class="border-b border-gray-300 py-2 w-full focus:outline-none focus:border-black">
+                            <label for="signin-password" class="label absolute left-0 top-1/2 transform -translate-y-1/2 transition-all pointer-events-none text-gray-400">
+                                Password
+                            </label>
+                            <i class="bi bi-eye-slash toggle-password absolute top-1/2 right-2 transform -translate-y-1/2 cursor-pointer" 
+                               id="toggle-signin-password"></i>
+                            <div class="error-message" id="signin-password-error"></div>
+                        </div>
+                        
+                        <button type="submit" id="signin-btn" class="py-3 bg-black text-white font-bold w-full">
+                            SIGN IN
+                        </button>
+                        
+                        <a href="#" id="forgot-password" class="mt-2 text-black">Forgot your password?</a>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Firebase Configuration
+        // IMPORTANT: Replace these with your actual Firebase config values
+        const firebaseConfig = {
+            apiKey: "AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+            authDomain: "your-project-id.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-project-id.appspot.com",
+            messagingSenderId: "123456789012",
+            appId: "1:123456789012:web:abcdef1234567890abcdef",
+            measurementId: "G-XXXXXXXXXX" // Optional: for Google Analytics
+        };
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Helper Functions
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.getElementById('toast-container').appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease-out reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function showLoading(button, loading = true) {
+            if (loading) {
+                button.disabled = true;
+                button.innerHTML = button.textContent + '<span class="spinner"></span>';
+            } else {
+                button.disabled = false;
+                button.innerHTML = button.textContent.replace('<span class="spinner"></span>', '');
+            }
+        }
+
+        function validateEmail(email) {
+            const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return re.test(email);
+        }
+
+        function validatePhone(phone) {
+            const re = /^[\d\s\-\+\(\)]+$/;
+            return re.test(phone) && phone.length >= 10;
+        }
+
+        function clearErrors() {
+            document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
+        }
+
+        // Tab Switching
+        document.getElementById('register-tab').addEventListener('click', function(event) {
+            event.preventDefault();
+            this.classList.add('border-b-2', 'border-black');
+            document.getElementById('signin-tab').classList.remove('border-b-2', 'border-black');
+            document.getElementById('register-form').classList.remove('hidden');
+            document.getElementById('signin-form').classList.add('hidden');
+            clearErrors();
+        });
+
+        document.getElementById('signin-tab').addEventListener('click', function(event) {
+            event.preventDefault();
+            this.classList.add('border-b-2', 'border-black');
+            document.getElementById('register-tab').classList.remove('border-b-2', 'border-black');
+            document.getElementById('signin-form').classList.remove('hidden');
+            document.getElementById('register-form').classList.add('hidden');
+            clearErrors();
+        });
+
+        // Password Toggle
+        document.getElementById('toggle-password').addEventListener('click', function() {
+            const passwordInput = document.getElementById('password');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                this.classList.remove('bi-eye-slash');
+                this.classList.add('bi-eye');
+            } else {
+                passwordInput.type = 'password';
+                this.classList.remove('bi-eye');
+                this.classList.add('bi-eye-slash');
+            }
+        });
+
+        document.getElementById('toggle-signin-password').addEventListener('click', function() {
+            const passwordInput = document.getElementById('signin-password');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                this.classList.remove('bi-eye-slash');
+                this.classList.add('bi-eye');
+            } else {
+                passwordInput.type = 'password';
+                this.classList.remove('bi-eye');
+                this.classList.add('bi-eye-slash');
+            }
+        });
+
+        // Fix for select dropdowns label positioning
+        const selects = document.querySelectorAll('select');
+        selects.forEach(select => {
+            select.addEventListener('change', function() {
+                if (this.value) {
+                    this.classList.add('has-value');
+                } else {
+                    this.classList.remove('has-value');
+                }
+            });
+            
+            // Check initial value
+            if (select.value) {
+                select.classList.add('has-value');
+            }
+        });
+
+        // Registration Form Handler
+        document.getElementById('register-form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            clearErrors();
+            
+            const button = document.getElementById('register-btn');
+            const firstName = document.getElementById('first-name').value.trim();
+            const lastName = document.getElementById('last-name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const birthday = document.getElementById('birthday').value;
+            const addressType = document.getElementById('address-type').value;
+            const address = document.getElementById('address').value.trim();
+            const mobile = document.getElementById('mobile').value.trim();
+            const country = document.getElementById('country').value;
+            const consent = document.getElementById('consent').checked;
+            const marketing = document.getElementById('marketing').checked;
+            
+            // Validation
+            let hasError = false;
+            
+            if (!firstName) {
+                document.getElementById('first-name-error').textContent = 'First name is required';
+                hasError = true;
+            }
+            
+            if (!lastName) {
+                document.getElementById('last-name-error').textContent = 'Last name is required';
+                hasError = true;
+            }
+            
+            if (!validateEmail(email)) {
+                document.getElementById('email-error').textContent = 'Please enter a valid email';
+                hasError = true;
+            }
+            
+            if (password.length < 6) {
+                document.getElementById('password-error').textContent = 'Password must be at least 6 characters';
+                hasError = true;
+            }
+            
+            if (!birthday) {
+                document.getElementById('birthday-error').textContent = 'Birthday is required';
+                hasError = true;
+            }
+            
+            if (!validatePhone(mobile)) {
+                document.getElementById('mobile-error').textContent = 'Please enter a valid phone number';
+                hasError = true;
+            }
+            
+            if (!consent) {
+                showToast('You must agree to the privacy policy to register', 'error');
+                hasError = true;
+            }
+            
+            if (hasError) return;
+            
+            showLoading(button, true);
+            
+            try {
+                // Create user with Firebase Auth
+                const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                const user = userCredential.user;
+                
+                // Send verification email
+                await user.sendEmailVerification();
+                
+                // Store user data in Firestore
+                await db.collection('users').doc(user.uid).set({
+                    firstName,
+                    lastName,
+                    email,
+                    birthday,
+                    addressType,
+                    address,
+                    mobile,
+                    country,
+                    marketingConsent: marketing,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    emailVerified: false
+                });
+                
+                showToast('Registration successful! Please check your email to verify your account.', 'success');
+                
+                // Clear form
+                document.getElementById('register-form').reset();
+                
+                // Reset select dropdown classes
+                document.querySelectorAll('select').forEach(select => {
+                    select.classList.remove('has-value');
+                });
+                
+            } catch (error) {
+                console.error('Registration error:', error);
+                
+                if (error.code === 'auth/email-already-in-use') {
+                    document.getElementById('email-error').textContent = 'This email is already registered';
+                } else if (error.code === 'auth/weak-password') {
+                    document.getElementById('password-error').textContent = 'Password is too weak';
+                } else {
+                    showToast('Registration failed: ' + error.message, 'error');
+                }
+            } finally {
+                showLoading(button, false);
+            }
+        });
+
+        // Sign In Form Handler
+        document.getElementById('signin-form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            clearErrors();
+            
+            const button = document.getElementById('signin-btn');
+            const email = document.getElementById('signin-email').value.trim();
+            const password = document.getElementById('signin-password').value;
+            
+            // Validation
+            if (!validateEmail(email)) {
+                document.getElementById('signin-email-error').textContent = 'Please enter a valid email';
+                return;
+            }
+            
+            if (!password) {
+                document.getElementById('signin-password-error').textContent = 'Password is required';
+                return;
+            }
+            
+            showLoading(button, true);
+            
+            try {
+                await auth.signInWithEmailAndPassword(email, password);
+                showToast('Sign in successful!', 'success');
+                document.getElementById('signin-form').reset();
+            } catch (error) {
+                console.error('Sign in error:', error);
+                
+                if (error.code === 'auth/user-not-found') {
+                    document.getElementById('signin-email-error').textContent = 'No account found with this email';
+                } else if (error.code === 'auth/wrong-password') {
+                    document.getElementById('signin-password-error').textContent = 'Incorrect password';
+                } else if (error.code === 'auth/too-many-requests') {
+                    showToast('Too many failed attempts. Please try again later.', 'error');
+                } else {
+                    showToast('Sign in failed: ' + error.message, 'error');
+                }
+            } finally {
+                showLoading(button, false);
+            }
+        });
+
+        // Forgot Password Handler
+        document.getElementById('forgot-password').addEventListener('click', async function(event) {
+            event.preventDefault();
+            
+            const email = document.getElementById('signin-email').value.trim();
+            
+            if (!email) {
+                showToast('Please enter your email address first', 'error');
+                return;
+            }
+            
+            if (!validateEmail(email)) {
+                showToast('Please enter a valid email address', 'error');
+                return;
+            }
+            
+            try {
+                await auth.sendPasswordResetEmail(email);
+                showToast('Password reset email sent! Check your inbox.', 'success');
+            } catch (error) {
+                console.error('Password reset error:', error);
+                
+                if (error.code === 'auth/user-not-found') {
+                    showToast('No account found with this email', 'error');
+                } else {
+                    showToast('Failed to send reset email: ' + error.message, 'error');
+                }
+            }
+        });
+
+        // Auth State Observer
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                // User is signed in
+                document.getElementById('auth-forms').classList.add('hidden');
+                document.getElementById('user-dashboard').classList.remove('hidden');
+                
+                // Get user data from Firestore
+                try {
+                    const userDoc = await db.collection('users').doc(user.uid).get();
+                    const userData = userDoc.data();
+                    
+                    document.getElementById('user-email').textContent = user.email;
+                    document.getElementById('user-name').textContent = `${userData.firstName} ${userData.lastName}`;
+                    document.getElementById('email-verified').textContent = user.emailVerified ? 'Yes' : 'No';
+                    
+                    // Show verify email button if not verified
+                    if (!user.emailVerified) {
+                        document.getElementById('verify-email-btn').classList.remove('hidden');
+                    }
+                    
+                    // Update Firestore if email is verified
+                    if (user.emailVerified && !userData.emailVerified) {
+                        await db.collection('users').doc(user.uid).update({
+                            emailVerified: true
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error fetching user data:', error);
+                }
+            } else {
+                // User is signed out
+                document.getElementById('auth-forms').classList.remove('hidden');
+                document.getElementById('user-dashboard').classList.add('hidden');
+            }
+        });
+
+        // Verify Email Button Handler
+        document.getElementById('verify-email-btn').addEventListener('click', async function() {
+            const user = auth.currentUser;
+            if (user) {
+                try {
+                    await user.sendEmailVerification();
+                    showToast('Verification email sent! Check your inbox.', 'success');
+                } catch (error) {
+                    showToast('Failed to send verification email: ' + error.message, 'error');
+                }
+            }
+        });
+
+        // Logout Handler
+        document.getElementById('logout-btn').addEventListener('click', async function() {
+            try {
+                await auth.signOut();
+                showToast('Logged out successfully', 'success');
+            } catch (error) {
+                showToast('Logout failed: ' + error.message, 'error');
+            }
+        });
+    </script>
+</body>
+
+</html>
